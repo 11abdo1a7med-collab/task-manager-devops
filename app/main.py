@@ -8,7 +8,6 @@ from .database import Base, engine, get_db
 from .models import Task
 from .schemas import TaskCreate, TaskResponse
 
-
 # API application
 app = FastAPI(
     title="Task Manager API",
