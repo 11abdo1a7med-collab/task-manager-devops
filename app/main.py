@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -50,18 +52,19 @@ def health():
 @app.post("/tasks", response_model=TaskResponse, status_code=201)
 def create_task(
     task: TaskCreate,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ):
     new_task = Task(**task.model_dump())
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
+
     return new_task
 
 
 @app.get("/tasks", response_model=list[TaskResponse])
 def list_tasks(
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ):
     return db.query(Task).all()
 
@@ -69,7 +72,7 @@ def list_tasks(
 @app.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task(
     task_id: int,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ):
     task = db.query(Task).filter(Task.id == task_id).first()
 
@@ -85,7 +88,7 @@ def get_task(
 @app.patch("/tasks/{task_id}/complete", response_model=TaskResponse)
 def complete_task(
     task_id: int,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ):
     task = db.query(Task).filter(Task.id == task_id).first()
 
@@ -105,7 +108,7 @@ def complete_task(
 @app.delete("/tasks/{task_id}", status_code=204)
 def delete_task(
     task_id: int,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ):
     task = db.query(Task).filter(Task.id == task_id).first()
 
@@ -117,6 +120,4 @@ def delete_task(
 
     db.delete(task)
     db.commit()
-
-    
 
