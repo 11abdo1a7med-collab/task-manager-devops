@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head><meta charset="UTF-8"><title>Task Manager</title>
+<style>body{font-family:sans-serif;max-width:600px;margin:40px auto}
+li{padding:8px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between}
+.done{text-decoration:line-through;color:#999}</style></head>
+<body>
+<h1>📋 Task Manager</h1>
+<input id="t" placeholder="مهمة جديدة"><button onclick="add()">إضافة</button>
+<ul id="list"></ul>
+<script>
+const API = location.origin;
+async function load(){const r=await fetch(API+"/tasks");const ts=await r.json();
+document.getElementById("list").innerHTML=ts.map(t=>
+`<li class="${t.completed?'done':''}">${t.title}
+<button onclick="fetch(API+'/tasks/'+t.id+'/complete',{method:'PATCH'}).then(load)">✓</button>
+<button onclick="fetch(API+'/tasks/'+t.id,{method:'DELETE'}).then(load)">🗑</button></li>`).join("");}
+async function add(){const v=document.getElementById("t").value;if(!v)return;
+await fetch(API+"/tasks",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({title:v})});document.getElementById("t").value="";load();}
+load();
+</script>
+</body>
+</html>
