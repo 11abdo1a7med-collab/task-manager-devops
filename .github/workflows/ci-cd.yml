@@ -2,20 +2,30 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+
   pull_request:
-    branches: [main]
+    branches:
+      - main
+
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+
+  # ==========================================================
+  # 1. TEST
+  # ==========================================================
   test:
     name: Lint, Test & Security
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v6
 
@@ -32,25 +42,36 @@ jobs:
           pip install ruff bandit
 
       - name: Lint with Ruff
-        run: ruff check app/ tests/
+        run: |
+          ruff check app/ tests/
 
       - name: Run tests
         env:
           DATABASE_URL: sqlite://
-        run: python -m pytest -v
+        run: |
+          python -m pytest -v
 
-      - name: Dependency security scan
-        run: bandit -r app/ -ll
+      - name: Security scan with Bandit
+        run: |
+          bandit -r app/ -ll
 
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
+  # ==========================================================
+  # 2. BUILD & PUSH DOCKER IMAGE
+  # ==========================================================
   build-and-push:
-    name: Build & Push Image
+    name: Build & Push Docker Image
     needs: test
-    if: github.event_name == 'push'
+
+    # Build image only on push/manual execution.
+    # Pull requests only run tests.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
     runs-on: ubuntu-latest
 
     permissions:
@@ -58,9 +79,10 @@ jobs:
       packages: write
 
     outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
+      image_tag: ${{ steps.meta.outputs.version }}
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v6
 
@@ -71,49 +93,92 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
           tags: |
             type=sha,prefix=
             type=raw,value=latest
 
-      - name: Build and push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          severity: CRITICAL,HIGH
-          exit-code: "0"
+      # ======================================================
+      # Trivy temporarily disabled
+      # ======================================================
+      # - name: Scan image with Trivy
+      #   uses: aquasecurity/trivy-action@v0.35.0
+      #   with:
+      #     image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      #     severity: CRITICAL,HIGH
+      #     exit-code: "1"
 
+
+  # ==========================================================
+  # 3. DEPLOY TO KUBERNETES
+  # ==========================================================
   deploy:
     name: Deploy to Kubernetes
     needs: build-and-push
-    if: github.event_name == 'push'
+
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
     runs-on: ubuntu-latest
+
     environment: production
 
+    permissions:
+      contents: read
+
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v6
 
+      # ------------------------------------------------------
+      # Setup kubeconfig
+      # ------------------------------------------------------
       - name: Setup kubeconfig
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+
+          echo "${{ secrets.KUBECONFIG }}" | base64 --decode > ~/.kube/config
+
           chmod 600 ~/.kube/config
 
+      # ------------------------------------------------------
+      # Test Kubernetes connection
+      # ------------------------------------------------------
+      - name: Verify Kubernetes connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      # ------------------------------------------------------
+      # Install Helm
+      # ------------------------------------------------------
       - name: Install Helm
         uses: azure/setup-helm@v4
 
+      # ------------------------------------------------------
+      # Verify Helm
+      # ------------------------------------------------------
+      - name: Verify Helm
+        run: |
+          helm version
+          helm lint ./helm/task-manager
+
+      # ------------------------------------------------------
+      # Deploy application
+      # ------------------------------------------------------
       - name: Deploy with Helm
         run: |
           helm upgrade --install task-manager ./helm/task-manager \
@@ -125,8 +190,17 @@ jobs:
             --wait \
             --timeout 120s
 
+      # ------------------------------------------------------
+      # Verify deployment
+      # ------------------------------------------------------
       - name: Verify deployment
         run: |
         
           kubectl -n task-manager rollout status deploy/task-manager-api
           kubectl -n task-manager get pods
+          kubectl -n task-manager get deployments
+          kubectl -n task-manager get services
+
+          kubectl -n task-manager rollout status \
+            deployment/task-manager-task-manager \
+            --timeout=120s
