@@ -12,12 +12,15 @@ RUN apt-get update \
 COPY requirements.txt .
 
 RUN python -m pip install --upgrade pip \
-    && python -m pip install --no-cache-dir -r requirements.txt \
-    && python -m pip install --no-cache-dir --upgrade \
-        msgpack \
-        setuptools
+    && python -m pip install --no-cache-dir -r requirements.txt
 
-COPY app/ ./app/
+COPY app/ ./app/ /app/
+
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
 
 EXPOSE 8000
 
