@@ -127,5 +127,6 @@ jobs:
 
       - name: Verify deployment
         run: |
+        
           kubectl -n task-manager rollout status deploy/task-manager-api
           kubectl -n task-manager get pods
