@@ -1,19 +1,15 @@
+
 name: CI/CD Pipeline
 
 on:
-  # التشغيل التلقائي عند الـ Push على الفروع الرئيسية
   push:
     branches: [ "main", "master" ]
-  
-  # التشغيل التلقائي عند الـ Pull Request
   pull_request:
     branches: [ "main", "master" ]
-
-  # 🔵 إضافة زر التشغيل اليدوي (Run workflow) مع إمكانية اختيار البيئة
   workflow_dispatch:
     inputs:
       environment:
-        description: 'اختر بيئة النشر (Deploy Environment)'
+        description: 'Environment'
         required: true
         default: 'staging'
         type: choice
@@ -21,7 +17,7 @@ on:
           - staging
           - production
       run_deploy:
-        description: 'تشغيل خطوة النشر؟ (سيتم تفعيلها لاحقاً في DAY 7)'
+        description: 'Run deployment step'
         required: true
         default: false
         type: boolean
@@ -30,9 +26,6 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # -------------------------------------------------------------
-  # PHASE 6: Build and Push Docker Images to GHCR (DAY 2)
-  # -------------------------------------------------------------
   build-and-push:
     name: Build & Push Docker Image to GHCR
     runs-on: ubuntu-latest
@@ -51,7 +44,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Metadata (tags, labels) for Docker
+      - name: Extract Metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -72,20 +65,12 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # -------------------------------------------------------------
-  # Placeholder for Deployment (سيفشل أو يتخطى حسبDAY 2 / DAY 7)
-  # -------------------------------------------------------------
   deploy:
     name: Deploy Application
     needs: build-and-push
     runs-on: ubuntu-latest
-    # لن يعمل إلا إذا تم تفعيل الخيار أو عند الوصول لـ DAY 7
     if: ${{ inputs.run_deploy == true }}
     steps:
       - name: Deployment Step Placeholder
         run: |
           echo "Deploying to environment: ${{ inputs.environment || 'staging' }}"
-          echo "⚠️ Deploy step is a placeholder for now (Phase 6)."
-          # في DAY 7 سيتم وضع خطوات الاتصال بـ EC2/K8s والنشر هنا
-
-      
