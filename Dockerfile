@@ -14,7 +14,7 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir -r requirements.txt
 
-COPY app/ ./app/ /app/
+COPY app/ ./app/ 
 
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app

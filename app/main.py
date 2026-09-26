@@ -7,6 +7,15 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from .models import Task
 from .schemas import TaskCreate, TaskResponse
+from fastapi.staticfiles import os, StaticFiles
+from fastapi.responses import FileResponse
+
+if os.path.exists("app/static"):
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+@app.get("/", include_in_schema=False)
+async def read_index():
+    return FileResponse("app/static/index.html")
 
 app = FastAPI(
     title="Task Manager API",
