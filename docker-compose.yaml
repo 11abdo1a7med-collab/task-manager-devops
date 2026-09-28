@@ -3,15 +3,15 @@ services:
     image: postgres:16
     container_name: taskmanager-db
     environment:
-      POSTGRES_USER: taskuser
-      POSTGRES_PASSWORD: taskpass
-      POSTGRES_DB: taskmanager
+      POSTGRES_USER: ${POSTGRES_USER:-taskuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-taskmanager}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskuser"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskuser}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -20,14 +20,21 @@ services:
     build: .
     container_name: taskmanager-api
     environment:
-      DATABASE_URL: postgresql://taskuser:taskpass@db:5432/taskmanager
-      APP_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-taskuser}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-taskmanager}
+      APP_ENV: ${APP_ENV:-development}
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
 
 volumes:
   pgdata:
+  
