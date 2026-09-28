@@ -1,16 +1,25 @@
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-from .database import get_db
+from .database import Base, engine, get_db
 from .models import Task
 from .schemas import TaskCreate, TaskResponse
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
 
 app = FastAPI(
     title="Task Manager API",
     version="0.2.0",
+    lifespan=lifespan,
 )
 
 app.mount(
@@ -117,3 +126,4 @@ def delete_task(
 
     db.delete(task)
     db.commit()
+    
