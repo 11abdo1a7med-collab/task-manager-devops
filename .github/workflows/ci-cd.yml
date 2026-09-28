@@ -21,6 +21,8 @@ env:
   EKS_CLUSTER_NAME: task-manager-eks
   K8S_NAMESPACE: task-manager
 
+#all jobs
+  
 jobs:
   test:
     name: Lint, Test & Security
@@ -29,6 +31,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -58,8 +67,16 @@ jobs:
       - name: Helm lint
         run: helm lint ./helm/task-manager --set secrets.databaseUrl=postgresql://user:pass@db:5432/db
 
+      - name: Trivy config scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
   build-and-push:
-    name: Build & Push Image
+    name: Build, Scan & Push Image
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -80,6 +97,22 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image (local, for scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan
+          cache-from: type=gha
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
 
       - name: Build and push
         uses: docker/build-push-action@v6
