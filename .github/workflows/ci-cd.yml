@@ -2,64 +2,134 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main", "feature/docker-setup" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main", "feature/docker-setup" ]
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  AWS_REGION: eu-central-1
+  EKS_CLUSTER_NAME: task-manager-eks
+  K8S_NAMESPACE: task-manager
 
 jobs:
-  test-and-lint:
-    name: Code Quality & Unit Tests
+  test:
+    name: Lint, Test & Security
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespassword
-          POSTGRES_DB: taskdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
+          cache: pip
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff bandit pytest
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements.txt
+          pip install ruff bandit
 
-      - name: Run Ruff (Linter)
-        run: ruff check .
+      - name: Ruff
+        run: ruff check app/ tests/
 
-      - name: Run Bandit (Security Check)
-        run: bandit -r app/
-
-      - name: Run Pytest
+      - name: Pytest
         env:
-          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/taskdb
-        run: pytest
+          DATABASE_URL: sqlite://
+        run: python -m pytest -v
 
-  docker-build:
-    name: Docker Image Build Test
-    needs: test-and-lint
+      - name: Bandit
+        run: bandit -r app/ -ll
+
+  build-and-push:
+    name: Build & Push Image
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: docker build -t task-manager-api:${{ github.sha }} .
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    name: Deploy to EKS with Helm
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
+
+      - name: Verify cluster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Ensure namespace
+        run: kubectl apply -f deploy/postgres/namespace.yaml
+
+      - name: Apply PostgreSQL
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          sed "s/CHANGE_ME/$POSTGRES_PASSWORD/" deploy/postgres/secret.yaml | kubectl apply -f -
+          kubectl apply -f deploy/postgres/storageclass.yaml
+          kubectl apply -f deploy/postgres/service.yaml
+          kubectl apply -f deploy/postgres/statefulset.yaml
+          kubectl -n "$K8S_NAMESPACE" rollout status statefulset/postgres --timeout=180s
+
+      - name: Deploy application with Helm
+        env:
+          DATABASE_URL: postgresql://taskuser:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/taskmanager
+        run: |
+          helm upgrade --install task-manager ./helm/task-manager             --namespace "$K8S_NAMESPACE"             --create-namespace             --set image.repository="${REGISTRY}/${IMAGE_NAME}"             --set image.tag="${GITHUB_SHA}"             --set secrets.databaseUrl="$DATABASE_URL"             --wait             --timeout 180s
+
+      - name: Verify application
+        run: |
+          kubectl -n "$K8S_NAMESPACE" get pods
+          kubectl -n "$K8S_NAMESPACE" get svc
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/task-manager-task-manager --timeout=180s

@@ -6,13 +6,12 @@ image:
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
-
 nameOverride: ""
 fullnameOverride: ""
 
 service:
-  type: ClusterIP
-  port: 8000
+  type: LoadBalancer
+  port: 80
   targetPort: 8000
 
 containerPort: 8000

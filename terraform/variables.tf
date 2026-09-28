@@ -50,3 +50,9 @@ variable "node_max_size" {
   type        = number
   default     = 3
 }
+
+variable "github_repository" {
+  description = "GitHub repository in owner/name format"
+  type        = string
+  default     = "11abdo1a7med-collab/task-manager-devops"
+}

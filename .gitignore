@@ -223,3 +223,27 @@ __marimo__/
 venv/
 .env
 
+# تجاهل مجلد ملفات terraform المؤقتة والكبيرة
+.terraform/
+
+# تجاهل ملفات الحالات (State Files)
+*.tfstate
+*.tfstate.*
+
+# تجاهل ملف المتغيرات الحساسة
+terraform.tfvars
+*.auto.tfvars
+.env
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.*
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+*.tfstate
+*.tfstate.*
+kubeconfig*

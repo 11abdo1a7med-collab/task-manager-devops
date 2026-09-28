@@ -51,11 +51,9 @@ def create_task(
     db: Annotated[Session, Depends(get_db)],
 ):
     db_task = Task(**task.model_dump())
-
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
-
     return db_task
 
 
@@ -80,10 +78,7 @@ def get_task(
     task = db.query(Task).filter(Task.id == task_id).first()
 
     if task is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Task not found",
-        )
+        raise HTTPException(status_code=404, detail="Task not found")
 
     return task
 
@@ -99,15 +94,11 @@ def complete_task(
     task = db.query(Task).filter(Task.id == task_id).first()
 
     if task is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Task not found",
-        )
+        raise HTTPException(status_code=404, detail="Task not found")
 
     task.completed = True
     db.commit()
     db.refresh(task)
-
     return task
 
 
@@ -122,11 +113,7 @@ def delete_task(
     task = db.query(Task).filter(Task.id == task_id).first()
 
     if task is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Task not found",
-        )
+        raise HTTPException(status_code=404, detail="Task not found")
 
     db.delete(task)
-    db.commit() 
-    
+    db.commit()
