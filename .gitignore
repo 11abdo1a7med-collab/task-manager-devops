@@ -239,11 +239,13 @@ venv/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
-terraform/.terraform/
-terraform/terraform.tfstate
-terraform/terraform.tfstate.*
-terraform/.terraform.lock.hcl
-terraform/terraform.tfvars
+
+# Terraform (لا تتجاهل .terraform.lock.hcl، يجب رفعه)
+.terraform/
 *.tfstate
 *.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+
+# Kubernetes
 kubeconfig*
