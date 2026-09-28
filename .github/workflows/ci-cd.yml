@@ -53,7 +53,7 @@ jobs:
         run: bandit -r app/ -ll
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Helm lint
         run: helm lint ./helm/task-manager --set secrets.databaseUrl=postgresql://user:pass@db:5432/db
@@ -116,7 +116,7 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
