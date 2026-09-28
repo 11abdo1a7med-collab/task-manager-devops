@@ -40,7 +40,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-                    
+
       - name: Ruff
         run: ruff check app/ tests/
 
@@ -51,6 +51,9 @@ jobs:
 
       - name: Bandit
         run: bandit -r app/ -ll
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
 
       - name: Helm lint
         run: helm lint ./helm/task-manager --set secrets.databaseUrl=postgresql://user:pass@db:5432/db
@@ -147,7 +150,7 @@ jobs:
             --set-string image.tag="${GITHUB_SHA}" \
             --set-string secrets.databaseUrl="$DATABASE_URL" \
             --wait \
-            --timeout 180s
+            --timeout 300s
 
       - name: Verify application
         run: |

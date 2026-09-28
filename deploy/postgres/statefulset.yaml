@@ -22,14 +22,28 @@ spec:
           envFrom:
             - secretRef:
                 name: postgres-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
-              command: ["sh", "-c", "pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB""]
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 10
             periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 30
+            periodSeconds: 20
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
@@ -39,3 +53,4 @@ spec:
         resources:
           requests:
             storage: 10Gi
+            
