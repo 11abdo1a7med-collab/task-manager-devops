@@ -1,0 +1,5 @@
+---
+docker_package_state: present
+aws_cli_enabled: true
+kubectl_enabled: true
+helm_enabled: true

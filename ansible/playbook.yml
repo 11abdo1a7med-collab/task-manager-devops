@@ -1,0 +1,8 @@
+---
+- name: Configure DevOps management server
+  hosts: devops_servers
+  become: true
+  gather_facts: true
+
+  roles:
+    - node_setup

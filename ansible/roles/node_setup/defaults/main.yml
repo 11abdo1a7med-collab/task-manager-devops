@@ -1,0 +1,73 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - unzip
+      - git
+      - ca-certificates
+      - gnupg
+      - python3
+      - python3-pip
+    state: present
+
+- name: Install Docker
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+    state: "{{ docker_package_state }}"
+
+- name: Enable and start Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Add ubuntu user to docker group
+  ansible.builtin.user:
+    name: ubuntu
+    groups: docker
+    append: true
+
+- name: Install AWS CLI v2
+  ansible.builtin.shell: |
+    set -e
+    if ! command -v aws >/dev/null 2>&1; then
+      tmpdir="$(mktemp -d)"
+      curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip \
+        -o "$tmpdir/awscliv2.zip"
+      unzip -q "$tmpdir/awscliv2.zip" -d "$tmpdir"
+      "$tmpdir/aws/install"
+      rm -rf "$tmpdir"
+    fi
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/aws
+  when: aws_cli_enabled
+
+- name: Install kubectl
+  ansible.builtin.shell: |
+    set -e
+    version="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+    curl -LO "https://dl.k8s.io/release/${version}/bin/linux/amd64/kubectl"
+    install -m 0755 kubectl /usr/local/bin/kubectl
+    rm -f kubectl
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/kubectl
+  when: kubectl_enabled
+
+- name: Install Helm
+  ansible.builtin.shell: |
+    set -e
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/helm
+  when: helm_enabled
